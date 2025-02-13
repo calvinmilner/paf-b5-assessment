@@ -2,17 +2,28 @@ package vttp.batch5.paf.movies.models;
 
 import java.util.UUID;
 
-public class Movie {
+public class SqlMovie {
     private String imdb_id;
-    private float vote_average;
+    private double vote_average;
     private int vote_count;
     private String release_date;
     private Integer revenue;
     private Integer budget;
     private int runtime;
 
-    public Movie() {
+    public SqlMovie() {
         this.imdb_id = UUID.randomUUID().toString().substring(0, 16);
+    }
+
+    public SqlMovie(String imdb_id, double vote_average, int vote_count, String release_date, Integer revenue,
+            Integer budget, int runtime) {
+        this.imdb_id = imdb_id;
+        this.vote_average = vote_average;
+        this.vote_count = vote_count;
+        this.release_date = release_date;
+        this.revenue = revenue;
+        this.budget = budget;
+        this.runtime = runtime;
     }
 
     public String getImdb_id() {
@@ -21,12 +32,7 @@ public class Movie {
     public void setImdb_id(String imdb_id) {
         this.imdb_id = imdb_id;
     }
-    public float getVote_average() {
-        return vote_average;
-    }
-    public void setVote_average(float vote_average) {
-        this.vote_average = vote_average;
-    }
+
     public int getVote_count() {
         return vote_count;
     }
@@ -61,5 +67,12 @@ public class Movie {
         this.release_date = release_date;
     }
 
-    
+    public double getVote_average() {
+        return vote_average;
+    }
+
+    public void setVote_average(double vote_average) {
+        this.vote_average = vote_average;
+    }
+   
 }

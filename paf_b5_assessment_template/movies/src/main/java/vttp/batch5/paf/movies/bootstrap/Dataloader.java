@@ -1,37 +1,30 @@
 package vttp.batch5.paf.movies.bootstrap;
 
-import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.StringReader;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Scanner;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import java.util.zip.ZipInputStream;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
 import jakarta.json.JsonValue;
-
-import vttp.batch5.paf.movies.models.Movie;
+import vttp.batch5.paf.movies.models.MongoMovie;
+import vttp.batch5.paf.movies.models.SqlMovie;
 import vttp.batch5.paf.movies.repositories.MongoMovieRepository;
 import vttp.batch5.paf.movies.repositories.MySQLMovieRepository;
 
@@ -52,7 +45,8 @@ public class Dataloader implements CommandLineRunner {
   public void run(String... args) throws Exception {
 
     // String zipName = "/data/movies_post_2010.zip";
-    List<Movie> movies = new LinkedList<>();
+    List<SqlMovie> sql_data = new LinkedList<>();
+    List<MongoMovie> mongo_data = new LinkedList<>();
     ZipFile zipFile = new ZipFile(new File(zipName));
     Enumeration<? extends ZipEntry> entries = zipFile.entries();
 
@@ -66,13 +60,12 @@ public class Dataloader implements CommandLineRunner {
         String data = inputStream.nextLine(); // Gets a whole line
         JsonReader jreader = Json.createReader(new StringReader(data));
         JsonObject j = jreader.readObject();
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-        Movie m = new Movie();
+        SqlMovie m = new SqlMovie();
+        MongoMovie mm = new MongoMovie();
         double vote_average = j.containsKey("vote_average")
             && j.get("vote_average").getValueType() == JsonValue.ValueType.NUMBER
                 ? (j.getJsonNumber("vote_average").doubleValue())
-                : 0.0;
-        float converted_vote_average = (float) vote_average;
+                : 0;
         int vote_count = j.containsKey("vote_count") && j.get("vote_count").getValueType() == JsonValue.ValueType.NUMBER
             ? j.getInt("vote_count")
             : 0;
@@ -87,35 +80,47 @@ public class Dataloader implements CommandLineRunner {
         int runtime = j.containsKey("runtime") && j.get("runtime").getValueType() == JsonValue.ValueType.NUMBER
             ? j.getInt("runtime")
             : 0;
-        Date cutOffDate = sdf.parse("2017-12-31");
-        Date retrievedDate = sdf.parse(released_date);
-        if (retrievedDate.after(cutOffDate)) {
-          m.setVote_average(converted_vote_average);
+        String retrievedDate = j.getString("release_date");
+        if (retrievedDate.isBlank())
+          continue;
+        LocalDate checkDate = LocalDate.parse(retrievedDate, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        if (checkDate.getYear() >= 2018) {
+          m.setVote_average(vote_average);
           m.setVote_count(vote_count);
           m.setRelease_date(released_date);
           m.setRevenue(revenue);
           m.setBudget(budget);
           m.setRuntime(runtime);
-          // if(movies.size() < 25) {
-          // movies.add(m);
-          // }
-          // else {
-          //  try {
-          //    mySqlMovieRepo.batchInsertMovies(movies);
-          //    mongoMovieRepo.batchInsertMovies(movies);
-          //    movies.clear();
-          //  } catch (Exception ex) {
-          //    mongoMovieRepository.logError( ,ex);
-          // }
+          mm.setImdb_id(j.getString("imdb_id"));
+          mm.setTitle(j.getString("title"));
+          mm.setDirectors(j.getString("director"));
+          mm.setOverview(j.getString("overview"));
+          mm.setTagline(j.getString("tagline"));
+          mm.setGenres(j.getString("genres"));
+          mm.setImdb_rating(j.getInt("imdb_rating"));
+          mm.setImdb_votes(j.getInt("imdb_votes"));
+          if (sql_data.size() < 25 && mongo_data.size() < 25) {
+            sql_data.add(m);
+            mongo_data.add(mm);
+          } else {
+            try {
+              mySqlMovieRepo.batchInsertMovies(sql_data);
+              mongoMovieRepo.batchInsertMovies(mongo_data);
+              sql_data.clear();
+              mongo_data.clear();
+            } catch (Exception ex) {
+              List<String> errorId = new LinkedList<>();
+              errorId.add(j.getString("imdb_id"));
+              mongoMovieRepo.logError(errorId, ex);
+            }
+          }
         }
-
         // System.out.printf(">>> %s\n", data);
       }
       inputStream.close();
       reader.close();
       stream.close();
+      zipFile.close();
     }
-
   }
-
 }
